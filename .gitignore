@@ -1,0 +1,10 @@
+# Ignore raw data files
+data/
+*.csv
+
+# Ignore local credentials
+.env
+
+# Ignore python compilation files
+__pycache__/
+*.pyc
