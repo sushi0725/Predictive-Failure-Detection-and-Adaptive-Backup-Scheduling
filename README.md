@@ -1,140 +1,109 @@
-# PREDICTIVE HARD DRIVE FAILURE DETECTION & ADAPTIVE BACKUP SCHEDULER
+# Predictive Failure Detection and Adaptive Backup Scheduling
 
-### An intelligent storage safety digital twin with telemetry parsing, automated risk evaluation, and live backup scheduling, built on real-world hard drive telemetry
-
-The engine transforms raw, multi-column hard drive SMART telemetry into a live predictive monitoring ecosystem. Every drive is scanned, tracked via its historical telemetry trends, assigned a real-time risk score, and evaluated through a rules engine. When elevated risk metrics are intercepted, the system dynamically schedules tactical, resource-aware system backups to safeguard critical data volumes before terminal breakdown occurs. 
-
-The system operates across real-world environments: it connects cleanly to production enterprise databases via SQLAlchemy or operates locally using flat data streams. It features an automated class-imbalance pipeline layer designed to protect model execution when processing standard production logs where active failures are rare.
+An intelligent, data-driven system that uses machine learning to forecast hard drive failures using SMART telemetry data and adaptively prioritizes backup frequencies based on real-time hardware risk scores. By integrating failure forecasting with a policy-driven decision layer, the system minimizes data loss while optimizing network and storage bandwidth utilization.
 
 ---
 
-## What It Does
+## 🚀 Key Features
 
-| Capability | How |
-| --- | --- |
-| Telemetry Ingestion | Dynamic batch CSV loader scanning local directory frameworks or connected network endpoints |
-| Feature Engineering | Targeted feature extraction layers tracking vital failure indicators (`smart_1`, `smart_5`, `smart_9`, `smart_187`, `smart_197`) |
-| Predictive Risk Scoring | High-efficiency **XGBoost Classifier** optimized for low-latency failure forecasting and threat-level generation |
-| Production-Level Balancing | Adaptive scale factors (`scale_pos_weight`) and validation replicators handling extreme class imbalances cleanly |
-| Decision Engine | A multi-tiered rule structure evaluating real-time machine learning threats alongside strict hardware thresholds |
-| Active Failure Alerts | Instant validation logging flagging critical decay profiles, abnormal operational limits, and urgent backup requests |
-| Replicated Environments | Automated system checks providing an isolated sandbox environment via virtual package management grids |
+* **Predictive Risk Modeling:** Uses an optimized machine learning pipeline to analyze telemetry data and classify individual hard drives into varying risk bands (Low, Medium, High).
+* **Adaptive Scheduling Engine:** Dynamically calculates optimal backup intervals based on drive risk metrics instead of static calendars.
+* **Production Database Integration:** Automates failure state historical logs and asset mapping using standard relational SQL databases.
+* **Interactive Operational Dashboard:** Visualizes machine metrics, predicted failure horizons, and active schedules cleanly using an embedded UI framework.
 
 ---
 
-## Core System Architecture
+## 📂 Repository Structure
 
-The platform utilizes a modern, two-tiered decision framework to transition from passive hardware monitoring to active threat remediation:
-
-1. **Tier 1 (Machine Learning Classification Backbone):** An optimized **XGBoost Classification model** trained on historical telemetry records. It flags hidden degradation signals across interactive attributes to output localized threat probability curves.
-2. **Tier 2 (Deterministic Rules Engine):** A tactical containment layer that evaluates risk metrics against infrastructure capacities. It schedules backups based on active failure windows.
-
-### Project Roadmap (Future Work)
-* **Long Short-Term Memory (LSTM) Networks:** Planned integration for temporal deep learning sequences across wide rolling time-series logging windows.
-* **Markov Decision Processes (MDP):** Planned reinforcement learning integration to optimize sequential multi-step backup scheduling relative to systemic data volatility.
-
----
-
-## Performance Baseline
-
-Measured against actual historical telemetry segments consisting of active production rows.
-
-| Evaluation Metric | Pipeline Performance Baseline |
-| --- | --- |
-| Row Records Processed (Single-Core Benchmark) | 45,000 logs / validation session |
-| Precision Matrix Score (Healthy Baseline Class) | 1.00 (Standard Operations) |
-| Recall Accuracy Matrix (Replicated Failure Subset) | 1.00 (Failure Interception) |
-| ROC-AUC Operational Validation Score | 1.0000 |
-| Model Serialization / Serialization IO Latency | < 2 ms (Joblib Core Binary) |
-| System Dependency Footprint | Completely Localized, Zero-Cloud Latency |
-
----
-
-## Technical Stack
-
-Python, XGBoost, Scikit-Learn, Pandas, NumPy, Joblib, PostgreSQL / SQLite, Anaconda Package Management Ecosystem.
-
----
-
-## Database Schema
-
-Every validation run populates structural states inside your data infrastructure. The system leverages write-ahead configurations to support simultaneous analytical checks while logging telemetry streams:
+The project codebase is organized into modular pipelines for model ingestion, training, database management, and policy execution:
 
 ```text
-runs (1) ──┬──< tracking_logs   one row per drive snapshot (raw attributes)
-           ├──< kinematics      one row per drive timeline (degradation velocities)
-           └──< active_alerts   one row per generated backup trigger event
-```
-
-| Table Target | Primary Key Structure | Monitored Attributes |
-| --- | --- | --- |
-| `runs` | `run_id` (Primary Key) | Execution timestamp, active database string, core hyperparameters |
-| `tracking_logs` | `(run_id, snapshot_idx)` | Serial number, model version, raw SMART flags, failure flags |
-| `kinematics` | `(run_id, track_id)` | Time-in-service metrics, wear delta profiles, health scores |
-| `active_alerts` | `alert_idx` | Trigger scope, target backup volume paths, severity classifications |
-
----
-
-## Repository Layout
-
-```text
-├── .env                              # Active environment configuration parameters
-├── .env.example                      # Distribution template for project run parameters
-├── requirements.txt                  # Consolidated system software dependency grid
-├── baseline_risk_model.joblib        # Serialized core XGBoost model binary
-├── OUTCOME GRAPHS                    # Tracking visualizations generated across validation sets
-├── README.md                         # Project documentation and engineering blueprints
-├── db/                               # Database migration templates and configuration parameters
-│   └── schema.sql                    # Base layout schema rules for target systems
-├── data/                             # Data framework root
-│   └── raw/                          # Destination repository for historical Backblaze CSV logs
-└── src/                              # Executable core pipeline modules
-    ├── config.py                     # Environment parameter parser and environment loader
-    ├── db_utils.py                   # SQL connection routing utilities and select wrappers
-    ├── build_features.py             # Feature engineering pipelines for SMART profiles
-    ├── decision_layer.py             # Tiered rules engine and tactical backup logic
-    ├── dashboard.py                  # Live tracking interface and visualization layouts
-    └── demo_score_drives.py          # Validation engine: ingest, balance, train, and test
+├── db/
+│   ├── schema.sql              # Relational tables configuration for assets & logs
+│   └── drop_all.sql            # Utility script to safely teardown local environments
+├── src/
+│   ├── config.py               # Shared parameters, file paths, and environment settings
+│   ├── dataset.py              # Ingestion utilities and feature generation templates
+│   ├── load_backblaze.py       # Live data collector tailored for public telemetry schemas
+│   ├── build_features.py       # Cleans SMART logs and flags target degradation vectors
+│   ├── train_model.py          # Trains and registers the predictive failure engine
+│   ├── db_utils.py             # Reusable abstraction layer for raw SQL transactions
+│   ├── init_db.py              # Bootstrap automation for local/target database clusters
+│   ├── decision_layer.py       # Orchestrates adaptive scheduling rules per asset risk band
+│   ├── run_decision_cycle.py   # Continuous engine cron executor 
+│   └── dashboard.py            # Operational visual interface logic
+├── baseline_risk_model.joblib  # Pre-compiled deployment package of the risk estimator
+├── requirements.txt.txt        # System library requirements manifest
+└── OUTCOME GRAPHS.pdf          # Performance verification plots and accuracy curves
 ```
 
 ---
 
-## Getting Started
+## 🛠️ System Components
 
-### 1. Environment Activation
-Initialize your localized workspace configuration from the root directory path:
+### 1. Ingestion & Transformation Pipeline
+* **`load_backblaze.py`**: Fetches external hardware failure benchmarks and matches raw hard drive formats to local storage matrices.
+* **`dataset.py` & `build_features.py`**: Reads raw time-series measurements, handles missing sensor data, and extracts relevant indicators (such as reallocated sector counts, command timeouts, and current pending sector counts).
 
+### 2. Predictive Engine
+* **`train_model.py`**: Implements training loops, applies stratified sampling to handle data imbalances, and serializes the resulting model into `baseline_risk_model.joblib`.
+
+### 3. Management Layer
+* **`decision_layer.py`**: Houses the dynamic scheduling logic:
+    * **Low Risk:** Normal backup cycles (e.g., weekly).
+    * **Medium Risk:** Increased telemetry logging and shortened backup cycles (e.g., daily).
+    * **High Risk:** Triggers immediate data evacuation tasks and alerts system administrators.
+* **`run_decision_cycle.py`**: Runs regularly to update risks, check storage metrics, and trigger alerts.
+
+---
+
+## ⚙️ Installation & Setup
+
+### Prerequisites
+* Python 3.8 or higher
+* An active relational database instance (PostgreSQL / SQLite / MySQL compatible)
+
+### 1. Clone & Environment Setup
+Clone this repository to your local system and configure your environment variables:
 ```bash
-# Generate the virtual environment container
-python -m venv venv
+git clone https://github.com
+cd Predictive-Failure-Detection-and-Adaptive-Backup-Scheduling
 
-# Activate the virtual environment
-# Windows PowerShell:
-.\venv\Scripts\Activate.ps1
-# Mac / Linux Terminal:
-source venv/bin/activate
+# Copy and update required system connection parameters
+cp .env.example .env
 ```
 
-### 2. Dependency Grid Execution
-Bypass Windows extension restrictions and install the software ecosystem directly into your running environment shell:
-
+### 2. Install Required Dependencies
+Install the required packages using the project requirements file:
 ```bash
-pip install numpy pandas xgboost scikit-learn joblib matplotlib
+pip install -r requirements.txt.txt
 ```
 
-### 3. Setup Runtime Configurations
-Confirm that your localized configuration template file matches your current deployment database engine by checking the `.env` configuration file:
-
-```env
-DATABASE_URL=postgresql+psycopg://postgres:ayushi%4025@localhost:5432/postgres
-HORIZON_DAYS=1
-RAW_DATA_DIR=data/raw
-MODEL_PATH=baseline_risk_model.joblib
+### 3. Database Initialization
+Prepare the target tables by executing the database bootstrap module:
+```bash
+python src/init_db.py
 ```
 
-### 4. Run the Pipeline Execution Target
-Launch the telemetry verification framework to parse real log profiles inside `data/raw/` and execute model training steps cleanly:
+---
 
+## 📈 Running the Application
+
+### Phase 1: Train the Risk Predictor
+To build a custom model using local hardware profiles, process your features and run the training pipeline:
 ```bash
-python src/demo_score_drives.py
+python src/build_features.py
+python src/train_model.py
+```
+
+### Phase 2: Start the Continuous Scheduling Engine
+Run the core control loop to begin tracking hardware risks and managing backup windows:
+```bash
+python src/run_decision_cycle.py
+```
+
+### Phase 3: Launch the Operational Dashboard
+Launch the interface to monitor current drive risks, schedule changes, and infrastructure performance metrics:
+```bash
+python src/dashboard.py
 ```
