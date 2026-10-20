@@ -278,3 +278,46 @@ The current implementation is a prototype and has the following limitations:
 Predictive Failure Detection and Adaptive Backup Scheduling demonstrates a database-backed prototype that combines hard-drive telemetry, machine-learning-based failure-risk estimation, risk-based backup prioritization, and an interactive dashboard.
 
 Its current results demonstrate the implemented pipeline, while low precision, limited failure examples, and the absence of verified physical backup execution remain important limitations for future development.
+
+## Model Explainability
+
+The project uses SHAP (SHapley Additive exPlanations) to explain the contribution of SMART telemetry features to failure-risk predictions. The feature-importance visualization is saved at `models/shap_feature_importance.png`.
+
+## Data Drift Monitoring
+
+The project monitors changes in SMART telemetry distributions using the Kolmogorov-Smirnov (KS) statistical test, with a significance threshold of 0.01.
+
+The report is saved at `models/drift_report.csv`, and monitoring records are stored in PostgreSQL. In the latest recorded run, none of the five monitored features crossed the configured drift-detection threshold. This does not guarantee that model predictive performance is unchanged.
+
+## Adaptive Backup Policy Evaluation
+
+The adaptive scheduling policy was evaluated against a fixed daily schedule using a sample of 10,000 disks over seven days.
+
+| Metric | Result |
+|---|---:|
+| Disks evaluated | 10,000 |
+| Disks with risk score >= 0.50 | 509 |
+| Disks with risk score >= 0.80 | 51 |
+| Estimated adaptive operations | 37,391 |
+| Estimated fixed-schedule operations | 70,000 |
+| Estimated reduction in operations | 46.58% |
+
+Results are saved in `models/backup_policy_comparison.csv` and `models/backup_policy_disk_details.csv`.
+
+**Important:** These are estimated scheduling operations, not verified physical backup executions or recovery outcomes.
+
+## Classification Threshold Analysis
+
+The saved chronological test set contains 115,703 rows and seven actual failures. At a classification threshold of 0.50, the model detected four failures and flagged 5,162 rows.
+
+The model achieved a ROC-AUC of approximately 0.8244 and a PR-AUC of approximately 0.00995. Precision at the 0.50 threshold is approximately 0.0008, highlighting the challenge of detecting rare failures while limiting false alarms.
+
+Threshold results are saved in `models/threshold_evaluation.csv`. More failure examples and further validation are needed before selecting a reliable operational threshold.
+
+## Limitations and Future Improvements
+
+- Evaluate the model on additional failures and multiple chronological test windows.
+- Improve precision while maintaining useful failure-detection recall.
+- Validate drift monitoring using representative, time-separated samples.
+- Integrate real backup execution and recovery verification before making operational reliability claims.
+- Monitor predictive performance over time and develop a validated retraining strategy.
