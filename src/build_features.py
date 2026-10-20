@@ -1,85 +1,122 @@
-import os
-import sys
-import pandas as pd
-import numpy as np
+
 import psycopg
-from sqlalchemy import create_engine
-from config import DATABASE_URL, FEATURE_COLUMNS
+from config import DATABASE_URL, HORIZON_DAYS
 
-def get_engine():
-    return create_engine(DATABASE_URL)
-
-def read_telemetry():
-    engine = get_engine()
-    df = pd.read_sql("SELECT * FROM smart_telemetry;", engine)
-    return df
-
-def build_features_matrix(df):
-    if df.empty:
-        return pd.DataFrame()
-    print("[-] Compiling sliding temporal lifecycle indicators feature matrices...")
-    
-    df = df.sort_values(by=['disk_id', 'timestamp'])
-    df['feature_date'] = df['timestamp']
-    
-    df['hours_in_service'] = df['smart_9_raw']
-    df['temperature_c'] = df['smart_194_raw'] if 'smart_194_raw' in df.columns else 35
-    
-    for col in FEATURE_COLUMNS:
-        if col in df.columns:
-            df[f"{col}_delta"] = df.groupby('disk_id')[col].diff().fillna(0)
-            
-    return df
-
-def write_features(df):
-    if df.empty:
-        return
-    
-    psycopg_dsn = DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
-    with psycopg.connect(psycopg_dsn) as conn:
-        with conn.cursor() as cur:
-            # Dynamically fetch destination columns to avoid UndefinedColumn mismatches
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'features' AND table_schema = 'public';
-            """)
-            db_cols = [row[0] for row in cur.fetchall() if row[0] != 'feature_id']
-            
-            # Keep only the columns present on both sides
-            matched_cols = [c for c in df.columns if c in db_cols]
-            
-            # Clean floating numbers to integers for strict database columns (e.g. converting 0.0 to 0)
-            for c in matched_cols:
-                if 'raw' in c or 'id' in c or 'failure' in c:
-                    try:
-                        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(np.int64)
-                    except Exception:
-                        pass
-
-            cleaned_df = df[matched_cols].copy()
-            
-            print(f"[-] Streaming {len(cleaned_df):,} feature records into destination schemas...")
-            cur.execute("TRUNCATE TABLE features RESTART IDENTITY CASCADE;")
-            
-            # FIX: Use FORMAT text and DELIMITER tab to avoid column shifting errors
-            with cur.copy(f"COPY features ({', '.join(matched_cols)}) FROM STDIN WITH (FORMAT text, DELIMITER E'\\t', NULL 'nan')") as copy:
-                for row in cleaned_df.itertuples(index=False):
-                    row_strings = [str(x).replace('\t', ' ').replace('\n', ' ') for x in row]
-                    copy.write_row(row_strings)
-            conn.commit()
+SMART_COLUMNS = [
+    "smart_1_raw", "smart_3_raw", "smart_4_raw", "smart_5_raw",
+    "smart_7_raw", "smart_9_raw", "smart_10_raw", "smart_12_raw",
+    "smart_187_raw", "smart_188_raw", "smart_189_raw", "smart_190_raw",
+    "smart_192_raw", "smart_193_raw", "smart_194_raw", "smart_197_raw",
+    "smart_198_raw", "smart_199_raw", "smart_240_raw", "smart_241_raw",
+    "smart_242_raw"
+]
 
 def main():
-    print("\n================ STARTING FEATURE ENGINEERING PIPELINE ==================")
-    try:
-        raw_df = read_telemetry()
-        print(f"[+] Loaded {len(raw_df):,} raw telemetry log records from database storage views.")
-        
-        feats_df = build_features_matrix(raw_df)
-        write_features(feats_df)
-        print("[+] Feature engineering module completed successfully. Pipeline aligned.\n")
-    except Exception as e:
-        print(f"[!] Critical feature processing failure: {e}")
-        raise e
+    if HORIZON_DAYS < 1:
+        raise ValueError("HORIZON_DAYS must be at least 1.")
+
+    dsn = DATABASE_URL.replace(
+        "postgresql+psycopg://", "postgresql://", 1
+    )
+    smart_columns = ", ".join(SMART_COLUMNS)
+    horizon_interval = f"INTERVAL '{HORIZON_DAYS} days'"
+
+    sql = f"""
+        INSERT INTO features (
+            telemetry_id, disk_id, serial_number, model,
+            timestamp, feature_date, {smart_columns},
+            failure, fails_within_horizon
+        )
+        WITH ordered AS (
+            SELECT
+                t.telemetry_id,
+                t.disk_id,
+                t.serial_number,
+                t.model,
+                t.timestamp,
+                t.date,
+                t.failure,
+                {", ".join("t." + c for c in SMART_COLUMNS)},
+                MAX(t.timestamp) OVER (
+                    PARTITION BY t.serial_number
+                ) AS last_timestamp,
+                MAX(t.failure) OVER (
+                    PARTITION BY t.serial_number
+                    ORDER BY t.timestamp
+                    RANGE BETWEEN INTERVAL '1 microsecond' FOLLOWING
+                    AND {horizon_interval} FOLLOWING
+                ) AS future_failure
+            FROM smart_telemetry t
+            WHERE t.serial_number IS NOT NULL
+              AND t.timestamp IS NOT NULL
+        )
+        SELECT
+            telemetry_id,
+            disk_id,
+            serial_number,
+            model,
+            timestamp,
+            timestamp AS feature_date,
+            {smart_columns},
+            failure,
+            CASE
+                WHEN last_timestamp >= timestamp + {horizon_interval}
+                THEN COALESCE(future_failure, 0)
+                ELSE NULL
+            END AS fails_within_horizon
+        FROM ordered
+    """
+
+    print("=== Backblaze Feature Engineering ===")
+    print(f"Prediction horizon: {HORIZON_DAYS} days")
+    print("Building features inside PostgreSQL; please wait...")
+
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM smart_telemetry")
+            telemetry_count = cur.fetchone()[0]
+            if telemetry_count == 0:
+                raise ValueError("No telemetry records found.")
+
+            print(f"Source telemetry records: {telemetry_count:,}")
+
+            # No tables reference features, as verified earlier.
+            # DELETE and INSERT are in the same transaction.
+            cur.execute("DELETE FROM features")
+            cur.execute(sql)
+
+            cur.execute("""
+                SELECT
+                    COUNT(*),
+                    COUNT(*) FILTER (
+                        WHERE fails_within_horizon IS NOT NULL
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE fails_within_horizon = 1
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE fails_within_horizon = 0
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE fails_within_horizon IS NULL
+                    )
+                FROM features
+            """)
+            total, labeled, positive, negative, unlabeled = cur.fetchone()
+
+            if labeled == 0 or positive == 0 or negative == 0:
+                raise ValueError(
+                    "Feature labels do not contain both classes. "
+                    "The transaction will be rolled back."
+                )
+
+            print(f"Feature rows: {total:,}")
+            print(f"Labeled rows: {labeled:,}")
+            print(f"Future-failure positives: {positive:,}")
+            print(f"Healthy negatives: {negative:,}")
+            print(f"Unlabeled rows: {unlabeled:,}")
+
+    print("[+] Feature engineering completed successfully.")
 
 if __name__ == "__main__":
     main()
