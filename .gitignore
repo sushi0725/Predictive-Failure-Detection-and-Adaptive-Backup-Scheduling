@@ -8,3 +8,10 @@ data/
 # Ignore python compilation files
 __pycache__/
 *.pyc
+
+.env
+models/
+*.joblib
+__pycache__/
+
+
