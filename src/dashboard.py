@@ -1,6 +1,7 @@
 import os
 import json
 import streamlit as st
+from db_utils import get_engine
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -167,3 +168,40 @@ with right_plot:
 st.markdown("---")
 st.subheader("📋 Core Infrastructure Fleet Real-Time Allocation Grid")
 st.dataframe(fleet_df[['serial_number', 'model', 'risk_score', 'calculated_tier', 'top_factors']], use_container_width=True, hide_index=True)
+
+st.markdown("---")
+st.subheader("🚨 Urgent Backup Queue")
+try:
+    with get_engine().connect() as conn:
+        urgent_df = pd.read_sql("SELECT * FROM vw_urgent_backup_queue LIMIT 100;", conn)
+    if urgent_df.empty:
+        st.success("No urgent backup actions currently in the queue.")
+    else:
+        st.dataframe(urgent_df, use_container_width=True, hide_index=True)
+except Exception as e:
+    st.warning(f"Unable to load urgent queue: {e}")
+
+st.markdown("---")
+st.subheader("📊 Model Evaluation Metrics")
+metrics_path = os.path.join("models", "metrics.json")
+if os.path.exists(metrics_path):
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            metrics = json.load(f)
+        metric_names = ["accuracy", "roc_auc", "pr_auc", "precision", "recall", "f1_score", "baseline_failure_rate"]
+        available_metrics = {k: metrics[k] for k in metric_names if k in metrics}
+        if available_metrics:
+            st.dataframe(
+                pd.DataFrame([{"Metric": k, "Value": f"{v:.6f}" if isinstance(v, (int, float)) else str(v)} for k, v in available_metrics.items()]),
+                use_container_width=True,
+                hide_index=True
+            )
+        st.caption(f"Prediction horizon: {metrics.get('prediction_horizon_days', 'N/A')} days | Test failures: {metrics.get('testing_failures', 'N/A')}")
+        st.info("The test set contains very few failures, so precision and recall estimates are uncertain.")
+    except Exception as e:
+        st.warning(f"Unable to read model metrics: {e}")
+else:
+    st.warning("models/metrics.json was not found.")
+
+st.markdown("---")
+
